@@ -1,0 +1,34 @@
+name: Outperforming Nifty 50
+description: Stocks that beat the Nifty 50 index by more than 10% over the last 60 trading days and are above their 50-day EMA.
+universe: nifty100
+group:
+  match: all
+  negate: false
+  filters:
+  - expr: close / close[60] > (nifty.close / nifty.close[60]) * 1.10
+    note: 60 day return at least 10% better than Nifty
+  - expr: close > ema(close, 50)
+    note: Above the 50 day EMA
+columns:
+- expr: close
+  as: Close
+  format: number
+  decimals: 2
+- expr: pct_change
+  as: '% Chg'
+  format: percent
+  decimals: 2
+  color: true
+- expr: (close / close[60] - 1) * 100
+  as: 60D Return
+  format: percent
+  decimals: 1
+  color: true
+- expr: (nifty.close / nifty.close[60] - 1) * 100
+  as: Nifty 60D
+  format: percent
+  decimals: 1
+  color: true
+sort:
+  by: 60D Return
+  desc: true

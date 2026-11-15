@@ -1,0 +1,40 @@
+name: Momentum checklist (any 3 of 4)
+description: Passes at least three of four momentum checks. Shows how 'any N' works.
+universe: nifty500
+group:
+  match: any 3
+  negate: false
+  filters:
+  - expr: rsi(close, 14) > 60
+    note: Strong RSI
+  - expr: close > bb_upper(close, 20, 2)
+    note: Closed above the upper Bollinger band
+  - expr: adx(14) > 25
+    note: Trending
+  - expr: volume > 2 * sma(volume, 20)
+    note: Volume at least twice the 20 day average
+columns:
+- expr: close
+  as: Close
+  format: number
+  decimals: 2
+- expr: pct_change
+  as: '% Chg'
+  format: percent
+  decimals: 2
+  color: true
+- expr: rsi(close, 14)
+  as: RSI 14
+  format: number
+  decimals: 1
+- expr: adx(14)
+  as: ADX 14
+  format: number
+  decimals: 1
+- expr: volume / sma(volume, 20)
+  as: Volume x avg
+  format: number
+  decimals: 2
+sort:
+  by: RSI 14
+  desc: true

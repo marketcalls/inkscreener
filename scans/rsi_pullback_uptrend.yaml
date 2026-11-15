@@ -1,0 +1,35 @@
+name: RSI pullback in an uptrend
+description: Long-term uptrend (above the 200-day SMA) with a short-term pullback (RSI 14 below 40).
+universe: nifty500
+group:
+  match: all
+  negate: false
+  filters:
+  - expr: close > sma(close, 200)
+    note: Above the 200 day average
+  - expr: sma(close, 50) > sma(close, 200)
+    note: 50 day average above 200 day average
+  - expr: rsi(close, 14) < 40
+    note: Short-term pullback
+columns:
+- expr: close
+  as: Close
+  format: number
+  decimals: 2
+- expr: pct_change
+  as: '% Chg'
+  format: percent
+  decimals: 2
+  color: true
+- expr: rsi(close, 14)
+  as: RSI 14
+  format: number
+  decimals: 1
+- expr: (close / sma(close, 200) - 1) * 100
+  as: Above 200D %
+  format: percent
+  decimals: 1
+  color: true
+sort:
+  by: RSI 14
+  desc: false

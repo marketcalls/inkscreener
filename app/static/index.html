@@ -1,0 +1,1072 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>InkScreener</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #000000;
+    --paper: #ffffff;
+    --graphite: #9b9b9b;
+    --rule: #262626;
+    --rule-strong: #404040;
+    --raised: #151515;
+    --gain: #36c672;
+    --loss: #ff5b52;
+    --caution: #e9b44c;
+    --sans: "Archivo", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", Consolas, monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--ink); color: var(--paper);
+    font-family: var(--sans); font-size: 15px; line-height: 1.5;
+    font-variant-numeric: tabular-nums;
+  }
+  button, input, select { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--paper); outline-offset: 2px; }
+  .page { max-width: 1180px; margin: 0 auto; padding: 28px 24px 80px; }
+
+  /* Header */
+  .top { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: baseline; justify-content: space-between;
+         padding-bottom: 18px; border-bottom: 1px solid var(--rule); }
+  .wordmark { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -0.01em; font-variation-settings: "wdth" 125; }
+  .status { color: var(--graphite); font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; }
+  .status strong { color: var(--paper); font-weight: 500; }
+
+  /* Buttons */
+  .btn { border: 1px solid var(--rule-strong); background: transparent; padding: 8px 14px; border-radius: 2px;
+         cursor: pointer; font-weight: 500; white-space: nowrap; }
+  .btn:hover { border-color: var(--paper); }
+  .btn.primary { background: var(--paper); color: var(--ink); border-color: var(--paper); font-weight: 650; }
+  .btn.primary:hover { background: #dcdcdc; }
+  .btn.small { padding: 4px 10px; font-size: 13px; }
+  .btn[disabled] { opacity: .45; cursor: progress; }
+  .link { background: none; border: 0; padding: 0; color: var(--graphite); cursor: pointer; font-size: 13px; }
+  .link:hover { color: var(--paper); text-decoration: underline; }
+
+  /* Scan picker */
+  .picker { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 26px 0 6px; }
+  .picker select { background: var(--ink); border: 1px solid var(--rule-strong); padding: 8px 10px; border-radius: 2px; min-width: 240px; }
+  .scan-name { background: transparent; border: 0; border-bottom: 1px solid transparent; font-size: 15px;
+               font-weight: 600; padding: 4px 0; min-width: 0; flex: 1 1 220px; }
+  .scan-name:hover, .scan-name:focus { border-bottom-color: var(--rule-strong); outline: none; }
+  .scan-desc { width: 100%; background: transparent; border: 0; color: var(--graphite); padding: 2px 0; font-size: 14px; }
+  .scan-desc:focus { outline: none; color: var(--paper); }
+
+  /* The sentence */
+  .sentence { font-size: clamp(22px, 3.1vw, 34px); font-weight: 500; line-height: 1.45; letter-spacing: -0.01em;
+              margin: 22px 0 26px; max-width: 30em; }
+  .sentence select {
+    appearance: none; -webkit-appearance: none; background: transparent; border: 0;
+    border-bottom: 2px solid var(--paper); border-radius: 0; padding: 0 2px; margin: 0 2px;
+    font-weight: 700; cursor: pointer; font-size: inherit; letter-spacing: inherit;
+  }
+  .sentence select:hover, .sentence .date-word:hover { border-bottom-color: var(--graphite); }
+  .sentence option { font-size: 15px; background: var(--ink); }
+  .date-slot { position: relative; display: inline-block; }
+  .date-word { background: transparent; border: 0; border-bottom: 2px solid var(--paper); padding: 0 2px; margin: 0 2px;
+               font-weight: 700; font-size: inherit; letter-spacing: inherit; cursor: pointer; }
+  .date-native { position: absolute; left: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; border: 0; padding: 0; pointer-events: none; }
+  .text-ruler { position: absolute; visibility: hidden; white-space: pre; font-weight: 700; }
+  .hint { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--graphite); margin: -16px 0 22px; }
+  .hint.caution .uni { color: var(--caution); }
+
+  /* Quick filters */
+  .quick { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0 0 18px; }
+  .quick > span { color: var(--graphite); font-size: 13px; margin-right: 4px; }
+  .chip { background: transparent; border: 1px solid var(--rule-strong); border-radius: 999px; padding: 3px 11px;
+          font-size: 13px; cursor: pointer; }
+  .chip:hover { border-color: var(--paper); }
+
+  /* Filter rows */
+  .filters { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); }
+  .filters.nested { border-top: 0; }
+  .filter { display: grid; grid-template-columns: 34px 22px minmax(0, 1fr) 190px 100px; gap: 6px 12px; align-items: start;
+            padding: 12px 0; border-bottom: 1px solid var(--rule); }
+  .filters.nested .filter { grid-template-columns: 34px 22px minmax(0, 1fr) 100px; }
+  .filters.nested .filter:last-child { border-bottom: 0; }
+  .filter.off .body, .filter.off .funnel { opacity: .4; }
+  .filter.error .cond { box-shadow: inset 2px 0 0 var(--loss); padding-left: 8px; }
+  .filter .num { color: var(--graphite); padding-top: 5px; font-size: 14px; }
+  .filter > input[type="checkbox"] { margin-top: 9px; accent-color: var(--paper); width: 16px; height: 16px; }
+  .note { width: 100%; background: transparent; border: 0; color: var(--graphite); font-size: 13px; padding: 2px 0 0 6px; }
+  .note:focus { outline: none; color: var(--paper); }
+  .err { color: var(--loss); font-size: 13px; margin: 4px 0 0 6px; }
+  .funnel { padding-top: 4px; font-size: 13px; color: var(--graphite); }
+  .funnel .count { color: var(--paper); font-weight: 600; font-size: 15px; }
+  .bar { height: 4px; background: var(--rule); margin-top: 6px; }
+  .bar > span { display: block; height: 100%; background: var(--paper); width: 0; transition: width .4s ease; }
+  .row-actions { display: flex; gap: 12px; justify-content: flex-end; padding-top: 6px; }
+  .under-filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 12px 0 0; }
+
+  /* Tokens */
+  .cond { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 3px; min-height: 32px; }
+  .tok { display: inline-flex; align-items: center; background: transparent; border: 1px solid transparent; border-radius: 2px;
+         padding: 2px 6px; cursor: pointer; font-size: 15px; line-height: 1.5; white-space: nowrap; }
+  .tok:hover, .tok.open { border-color: var(--rule-strong); background: var(--raised); }
+  .tok.measure { font-weight: 650; }
+  .tok.offset { color: var(--graphite); font-size: 14px; }
+  .tok.offset.set { color: var(--paper); }
+  .tok.verb { border-color: var(--rule-strong); font-style: italic; }
+  .tok.verb:hover, .tok.verb.open { border-color: var(--paper); }
+  .tok.value { background: var(--raised); border-color: var(--rule-strong); min-width: 28px; justify-content: center; }
+  .tok.math { color: var(--graphite); font-weight: 600; }
+  .tok.add { color: var(--graphite); border: 1px dashed var(--rule-strong); padding: 0 6px; font-size: 13px; }
+  .tok.add:hover { color: var(--paper); }
+  .tok.adv { font-family: var(--mono); font-size: 13px; color: var(--graphite); border: 1px dashed var(--rule-strong); cursor: default; white-space: normal; }
+  .paren { color: var(--graphite); margin: 0 -2px; }
+
+  /* Sub-groups */
+  .group { border-left: 2px solid var(--rule-strong); padding: 2px 0 8px 14px; }
+  .group-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 14px; color: var(--graphite); padding: 4px 0; }
+  .group-head select { background: var(--ink); border: 0; border-bottom: 1px solid var(--paper); color: var(--paper); font-weight: 650; padding: 0 2px; cursor: pointer; }
+  .group .under-filters { padding-top: 6px; }
+
+  /* Popover menus */
+  .pop { position: absolute; z-index: 50; width: 320px; background: var(--ink); border: 1px solid var(--paper); border-radius: 2px;
+         box-shadow: 0 12px 40px rgba(0, 0, 0, .8); }
+  .pop .search { width: 100%; background: var(--ink); border: 0; border-bottom: 1px solid var(--rule-strong); padding: 9px 12px; }
+  .pop .search:focus { outline: none; border-bottom-color: var(--paper); }
+  .pop .list { max-height: 340px; overflow-y: auto; padding: 4px 0; }
+  .pop .sec { color: var(--graphite); font-size: 12px; padding: 8px 12px 2px; }
+  .pop .item { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 6px 12px; cursor: pointer; }
+  .pop .item small { display: block; color: var(--graphite); font-size: 12px; }
+  .pop .item.active, .pop .item:hover { background: var(--paper); color: var(--ink); }
+  .pop .item.active small, .pop .item:hover small { color: #444; }
+  .pop .numform { padding: 12px; display: grid; gap: 8px; }
+  .pop .numform label { font-size: 13px; color: var(--graphite); }
+  .pop .numform input { background: var(--ink); border: 1px solid var(--rule-strong); border-radius: 2px; padding: 7px 9px; font-size: 16px; }
+  .pop .numform input:focus { border-color: var(--paper); outline: none; }
+  .pop .numform .row { display: flex; gap: 8px; }
+  .pop .empty-note { color: var(--graphite); font-size: 13px; padding: 10px 12px; }
+
+  /* Columns editor */
+  details.columns { margin-top: 18px; }
+  details.columns summary { cursor: pointer; color: var(--graphite); font-size: 13px; width: max-content; }
+  details.columns summary:hover { color: var(--paper); }
+  .col-row { display: grid; grid-template-columns: minmax(0, 1fr) 150px 110px 120px 60px; gap: 10px; align-items: center;
+             padding: 8px 0; border-bottom: 1px solid var(--rule); }
+  .col-row input[type="text"], .col-row select { background: var(--ink); border: 1px solid var(--rule-strong); border-radius: 2px; padding: 5px 8px; font-size: 13px; width: 100%; }
+  .col-row label { font-size: 13px; color: var(--graphite); display: flex; gap: 6px; align-items: center; }
+
+  /* Actions */
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 26px 0 0; }
+  .message { font-size: 13px; color: var(--graphite); }
+  .message.error { color: var(--loss); }
+  .message.caution { color: var(--caution); }
+
+  /* Sections */
+  section.block { margin-top: 44px; }
+  .block-head { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: baseline; justify-content: space-between;
+                border-bottom: 1px solid var(--paper); padding-bottom: 10px; }
+  .block-head h2 { margin: 0; font-size: 20px; font-weight: 700; font-variation-settings: "wdth" 112; letter-spacing: -0.005em; }
+  .summary { color: var(--graphite); font-size: 14px; }
+  .summary strong { color: var(--paper); font-weight: 600; }
+  .explain { color: var(--graphite); font-size: 14px; margin: 14px 0 0; max-width: 80ch; }
+
+  /* Results table */
+  .table-tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin: 14px 0 6px; }
+  .search-box { background: var(--ink); border: 1px solid var(--rule-strong); border-radius: 2px; padding: 6px 10px; min-width: 240px; }
+  .search-box:focus { border-color: var(--paper); outline: none; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-weight: 500; color: var(--graphite); font-size: 13px; border-bottom: 1px solid var(--rule-strong); padding: 0; }
+  th button { background: none; border: 0; padding: 8px 10px; width: 100%; text-align: inherit; cursor: pointer; color: inherit; }
+  th button:hover, th button[aria-sort] { color: var(--paper); }
+  th.plain { padding: 8px 10px; }
+  th.n, td.n { text-align: right; }
+  td { padding: 9px 10px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+  tbody tr:hover td { background: #121212; }
+  td.sym { font-weight: 650; }
+  td.co { color: var(--graphite); white-space: normal; min-width: 180px; }
+  td.ind { color: var(--graphite); font-size: 13px; }
+  .gain { color: var(--gain); }
+  .loss { color: var(--loss); }
+  .empty { padding: 28px 0; color: var(--graphite); }
+
+  /* History */
+  .periods { display: flex; border: 1px solid var(--rule-strong); border-radius: 2px; }
+  .periods button { background: none; border: 0; padding: 5px 11px; cursor: pointer; font-size: 13px; color: var(--graphite); }
+  .periods button + button { border-left: 1px solid var(--rule-strong); }
+  .periods button[aria-pressed="true"] { background: var(--paper); color: var(--ink); font-weight: 600; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px 24px; margin: 18px 0; }
+  .stat .v { font-size: 26px; font-weight: 700; font-variation-settings: "wdth" 112; line-height: 1.1; }
+  .stat .k { color: var(--graphite); font-size: 13px; }
+  .chart svg { display: block; width: 100%; height: 220px; }
+  .chart .bar-rect { fill: var(--paper); opacity: .78; cursor: pointer; }
+  .chart .bar-rect:hover, .chart .bar-rect.sel { opacity: 1; }
+  .chart .bar-rect.sel { fill: var(--gain); }
+  .chart .axis { fill: var(--graphite); font-size: 11px; font-family: var(--sans); }
+  .chart .gridline { stroke: var(--rule); }
+  .chart-readout { font-size: 13px; color: var(--graphite); min-height: 20px; margin-top: 6px; }
+  .two-col { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 32px; margin-top: 22px; }
+  .two-col h3 { margin: 0 0 6px; font-size: 15px; font-weight: 650; }
+  .ind-row { display: grid; grid-template-columns: minmax(0, 1fr) 46px; gap: 10px; font-size: 13px; padding: 4px 0; border-bottom: 1px solid var(--rule); }
+  .ind-row .track { grid-column: 1 / -1; height: 3px; background: var(--rule); }
+  .ind-row .track span { display: block; height: 100%; background: var(--paper); }
+
+  .hidden { display: none !important; }
+
+  @media (max-width: 760px) {
+    .page { padding: 20px 16px 60px; }
+    .filter, .filters.nested .filter { grid-template-columns: 26px 20px minmax(0, 1fr); }
+    .filter .funnel, .filter .row-actions { grid-column: 3; }
+    .row-actions { justify-content: flex-start; }
+    .col-row { grid-template-columns: 1fr 1fr; }
+    .two-col { grid-template-columns: 1fr; }
+    .pop { width: calc(100vw - 32px); }
+  }
+  @media (prefers-reduced-motion: reduce) { .bar > span { transition: none; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="top">
+    <h1 class="wordmark">InkScreener</h1>
+    <div class="status" id="status">Loading Historify data</div>
+  </header>
+
+  <div class="picker">
+    <select id="scanSelect" aria-label="Saved scans"></select>
+    <button class="btn small" id="newScan">New scan</button>
+    <input class="scan-name" id="scanName" aria-label="Scan name">
+  </div>
+  <input class="scan-desc" id="scanDesc" aria-label="Scan description" placeholder="Describe what this scan looks for">
+
+  <p class="sentence" id="sentence">
+    Stocks in <select id="universe" aria-label="Universe"></select>
+    that <select id="negate" aria-label="Pass or fail">
+      <option value="false">pass</option><option value="true">fail</option>
+    </select>
+    <select id="match" aria-label="How many filters must pass"></select>
+    of these filters on <span class="date-slot"><button type="button" class="date-word" id="asOfLabel">the latest day</button><input
+      type="date" id="asOf" class="date-native" aria-label="Scan date" tabindex="-1"></span>
+    <span class="text-ruler" id="ruler" aria-hidden="true"></span>
+  </p>
+  <div class="hint" id="sentenceHint"></div>
+
+  <div class="quick" id="quick"><span>Quick add</span></div>
+
+  <ol class="filters" id="filters"></ol>
+  <div class="under-filters">
+    <button class="btn small" id="addFilter">Add filter</button>
+    <button class="btn small" id="addGroup">Add sub-group</button>
+    <span class="message">Click any word in a filter to change it.</span>
+  </div>
+
+  <details class="columns">
+    <summary>Result columns</summary>
+    <div id="columns"></div>
+    <button class="btn small" id="addColumn" style="margin-top:10px">Add column</button>
+  </details>
+
+  <div class="actions">
+    <button class="btn primary" id="run">Run scan</button>
+    <button class="btn" id="showHistory">Show history</button>
+    <button class="btn" id="exportCsv" disabled>Export CSV</button>
+    <button class="btn" id="save">Save scan</button>
+    <span class="message" id="message" role="status"></span>
+  </div>
+
+  <section class="block hidden" id="resultsBlock" aria-live="polite">
+    <div class="block-head">
+      <h2>Matches</h2>
+      <div class="summary" id="resultSummary"></div>
+    </div>
+    <div class="explain" id="explain"></div>
+    <div class="table-tools">
+      <input class="search-box" id="search" type="search" placeholder="Filter by symbol, company or industry" aria-label="Filter results">
+      <button class="link hidden" id="backToLatest">Back to the latest day</button>
+    </div>
+    <div class="table-wrap"><table id="results"></table></div>
+  </section>
+
+  <section class="block hidden" id="historyBlock">
+    <div class="block-head">
+      <h2>History</h2>
+      <div class="periods" id="periods" role="group" aria-label="History period"></div>
+    </div>
+    <div class="stats" id="historyStats"></div>
+    <div class="chart" id="chart"></div>
+    <div class="chart-readout" id="chartReadout">Click a bar to see that day's matches.</div>
+    <div class="two-col">
+      <div>
+        <h3>Most frequent matches</h3>
+        <div class="table-wrap"><table id="historyStocks"></table></div>
+      </div>
+      <div>
+        <h3>By industry</h3>
+        <div id="industries"></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const PERIOD_LABELS = { "3m": "3M", "6m": "6M", "9m": "9M", "1y": "1Y", "2y": "2Y", "4y": "4Y", "6y": "6Y", "9y": "9Y" };
+const state = { scan: null, scanId: null, result: null, history: null, period: "9m", universes: [],
+                status: null, sort: null, errors: {} };
+const B = { sections: [], compare: [], cross: [], math: [], presets: [], byKey: {} };
+
+/* ================================================================== helpers */
+
+function h(tag, attrs = {}, ...children) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v === null || v === undefined || v === false) continue;
+    if (k === "class") el.className = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else if (k === "value") el.value = v;
+    else if (k === "checked") el.checked = v;
+    else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of children.flat()) if (c !== null && c !== undefined && c !== false)
+    el.append(c instanceof Node ? c : document.createTextNode(String(c)));
+  return el;
+}
+
+async function api(method, url, body) {
+  const res = await fetch(url, { method, headers: body ? { "Content-Type": "application/json" } : {},
+                                 body: body ? JSON.stringify(body) : undefined });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const d = data.detail;
+    const msg = (d && (d.message || (Array.isArray(d) ? d.map((x) => x.msg.replace(/^Value error, /, "")).join("; ") : d)))
+      || res.statusText;
+    const err = new Error(msg); err.detail = d; throw err;
+  }
+  return data;
+}
+
+function say(text, kind = "") { const m = $("#message"); m.textContent = text; m.className = "message " + kind; }
+const fmtDate = (iso) => iso ? new Date(iso + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "";
+const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 60) || "untitled_scan";
+const clone = (x) => structuredClone(x);
+const fmtPlain = (v) => (Math.round(v * 1e6) / 1e6).toLocaleString("en-IN", { maximumFractionDigits: 6 });
+
+function fmtValue(v, col) {
+  if (v === null || v === undefined) return "";
+  const d = col.decimals ?? (col.format === "integer" ? 0 : 2);
+  if (col.format === "integer") return Math.round(v).toLocaleString("en-IN");
+  const s = v.toLocaleString("en-IN", { minimumFractionDigits: d, maximumFractionDigits: d });
+  return col.format === "percent" ? s + "%" : s;
+}
+
+let runTimer = null;
+function scheduleRun() { clearTimeout(runTimer); runTimer = setTimeout(run, 350); }
+
+/* ================================================================== popover menus */
+
+let openPop = null;
+function closePop() {
+  if (!openPop) return;
+  openPop.anchor.classList.remove("open");
+  openPop.el.remove();
+  document.removeEventListener("mousedown", openPop.outside, true);
+  const a = openPop.anchor; openPop = null;
+  if (document.body.contains(a)) a.focus({ preventScroll: true });
+}
+
+function placePop(el, anchor) {
+  document.body.append(el);
+  const r = anchor.getBoundingClientRect();
+  const w = el.offsetWidth;
+  const left = Math.max(8, Math.min(r.left, document.documentElement.clientWidth - w - 8));
+  el.style.left = `${left + window.scrollX}px`;
+  el.style.top = `${r.bottom + window.scrollY + 6}px`;
+}
+
+function showPop(anchor, el) {
+  closePop();
+  anchor.classList.add("open");
+  const outside = (e) => { if (!el.contains(e.target) && !anchor.contains(e.target)) closePop(); };
+  el.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); closePop(); } });
+  document.addEventListener("mousedown", outside, true);
+  openPop = { el, anchor, outside };
+  placePop(el, anchor);
+}
+
+/* sections: [{ title, items: [{ label, sub, value }] }] */
+function openMenu(anchor, sections, onPick, { search = true } = {}) {
+  const pop = h("div", { class: "pop", role: "dialog" });
+  const list = h("div", { class: "list", role: "listbox" });
+  const input = search ? h("input", { class: "search", placeholder: "Search", "aria-label": "Search" }) : null;
+  let active = 0, buttons = [];
+  const pick = (item) => { closePop(); onPick(item.value); };
+  const draw = () => {
+    const q = (input?.value || "").trim().toLowerCase();
+    list.replaceChildren(); buttons = [];
+    for (const sec of sections) {
+      const items = sec.items.filter((it) => !q || it.label.toLowerCase().includes(q) || (it.sub || "").toLowerCase().includes(q));
+      if (!items.length) continue;
+      if (sec.title) list.append(h("div", { class: "sec" }, sec.title));
+      for (const it of items) {
+        const b = h("button", { class: "item", role: "option", onclick: () => pick(it) }, it.label, it.sub ? h("small", {}, it.sub) : null);
+        b._item = it; buttons.push(b); list.append(b);
+      }
+    }
+    if (!buttons.length) list.append(h("div", { class: "empty-note" }, "Nothing matches. Try another word."));
+    active = 0; mark();
+  };
+  const mark = () => buttons.forEach((b, i) => b.classList.toggle("active", i === active));
+  pop.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown") { e.preventDefault(); active = Math.min(buttons.length - 1, active + 1); mark(); buttons[active]?.scrollIntoView({ block: "nearest" }); }
+    if (e.key === "ArrowUp") { e.preventDefault(); active = Math.max(0, active - 1); mark(); buttons[active]?.scrollIntoView({ block: "nearest" }); }
+    if (e.key === "Enter" && buttons[active]) { e.preventDefault(); pick(buttons[active]._item); }
+  });
+  if (input) { input.addEventListener("input", draw); pop.append(input); }
+  pop.append(list); draw();
+  showPop(anchor, pop);
+  (input || buttons[0])?.focus();
+}
+
+function openNumber(anchor, { value, label = "Value", integer = false, min = null }, onApply) {
+  const input = h("input", { type: "number", step: integer ? "1" : "any", value: String(value), "aria-label": label });
+  const err = h("div", { class: "err hidden" });
+  const apply = () => {
+    const v = Number(input.value);
+    if (input.value.trim() === "" || !Number.isFinite(v)) { err.textContent = "Enter a number."; err.classList.remove("hidden"); return; }
+    if (integer && !Number.isInteger(v)) { err.textContent = "Use a whole number."; err.classList.remove("hidden"); return; }
+    if (min !== null && v < min) { err.textContent = `Use ${min} or more.`; err.classList.remove("hidden"); return; }
+    closePop(); onApply(v);
+  };
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); apply(); } });
+  const pop = h("div", { class: "pop" }, h("div", { class: "numform" }, h("label", {}, label), input, err,
+    h("div", { class: "row" }, h("button", { class: "btn small primary", onclick: apply }, "Apply"),
+      h("button", { class: "btn small", onclick: closePop }, "Cancel"))));
+  showPop(anchor, pop);
+  input.focus(); input.select();
+}
+
+/* ================================================================== builder model */
+
+function itemFor(node) {
+  if (node.type === "field") return B.byKey[(node.bench ? "bench:" : "field:") + node.name];
+  if (node.type === "fn") return B.byKey["fn:" + node.name];
+  return null;
+}
+const labelFor = (node) => itemFor(node)?.label ?? node.name;
+const num = (v) => ({ type: "num", value: v });
+const field = (name, offset = 0) => ({ type: "field", name, offset });
+const ago = (k) => !k ? "today" : k === 1 ? "1 day ago" : `${k} days ago`;
+
+function makeOperand(item, prev) {
+  const offset = prev && prev.type !== "num" ? prev.offset || 0 : 0;
+  if (item.kind === "num") return num(prev?.type === "num" ? prev.value : 0);
+  if (item.kind === "field") return { type: "field", name: item.name, offset };
+  if (item.kind === "bench") return { type: "field", name: item.name, bench: true, offset };
+  return { type: "fn", name: item.name, offset,
+           args: item.params.map((p) => p.kind === "series" ? clone(p.default) : num(p.default)) };
+}
+
+function defaultRight(left) {
+  const n = left.name;
+  if (left.type === "num") return field("close");
+  if (["rsi", "stoch_k", "stoch_d"].includes(n)) return num(50);
+  if (["adx", "plus_di", "minus_di"].includes(n)) return num(25);
+  if (["macd_line", "macd_signal", "macd_hist", "pct_change", "change", "atr", "std", "sum"].includes(n)) return num(0);
+  if (n === "volume") return { type: "fn", name: "sma", offset: 0, args: [field("volume"), num(20)] };
+  if (left.type === "field" && !left.bench) return { type: "fn", name: "sma", offset: 0, args: [field("close"), num(20)] };
+  return field("close");
+}
+
+function readable(n) {
+  if (!n) return "";
+  const suffix = (k) => (k ? ` ${k}d ago` : "");
+  switch (n.type) {
+    case "num": return fmtPlain(n.value);
+    case "field": return labelFor(n) + suffix(n.offset);
+    case "fn": return `${labelFor(n)}(${n.args.map(readable).join(", ")})` + suffix(n.offset);
+    case "bin": return `${readable(n.left)} ${n.op} ${readable(n.right)}`;
+    default: return n.expr || "";
+  }
+}
+
+function paletteSections() {
+  return B.sections.map((s) => ({ title: s.title, items: s.items.map((it) => ({ label: it.label, sub: it.doc, value: it })) }));
+}
+
+/* ================================================================== tokens */
+
+function tok(cls, text, onClick, title) {
+  if (!onClick) return h("span", { class: `tok ${cls}`, title }, text);
+  const b = h("button", { type: "button", class: `tok ${cls}`, title });
+  b.textContent = text;
+  b.addEventListener("click", () => onClick(b));
+  return b;
+}
+
+function offsetTok(node, set) {
+  const choose = (k) => set({ ...node, offset: k });
+  return tok("offset" + (node.offset ? " set" : ""), ago(node.offset), (el) => openMenu(el, [{ items: [
+    ...[0, 1, 2, 3, 5, 6, 10, 20, 50].map((k) => ({ label: ago(k), value: k })),
+    { label: "Another number of days", value: "custom" },
+  ] }], (k) => k === "custom"
+      ? openNumber(el, { value: node.offset || 1, label: "Days ago", integer: true, min: 0 }, choose)
+      : choose(k), { search: false }), "When: change to compare with an earlier day");
+}
+
+function operandTokens(node, set, depth) {
+  if (node.type === "advanced") return [tok("adv", node.expr, null, "Written in the scan file")];
+  if (node.type === "bin") {
+    const wrap = (child, setChild) => child.type === "bin"
+      ? [h("span", { class: "paren" }, "("), ...operandTokens(child, setChild, depth), h("span", { class: "paren" }, ")")]
+      : operandTokens(child, setChild, depth);
+    const opLabel = B.math.find((m) => m.op === node.op)?.label ?? node.op;
+    return [
+      ...wrap(node.left, (v) => set({ ...node, left: v })),
+      tok("math", opLabel, (el) => openMenu(el, [{ items: [
+        ...B.math.map((m) => ({ label: m.label, value: { op: m.op } })),
+        { label: "Remove this math", sub: `Keep only ${readable(node.left)}`, value: { remove: true } },
+      ] }], (v) => set(v.remove ? node.left : { ...node, op: v.op }), { search: false })),
+      ...wrap(node.right, (v) => set({ ...node, right: v })),
+    ];
+  }
+  const out = [];
+  if (node.type === "num") {
+    if (depth === 0) out.push(tok("measure", "Number", (el) => openMenu(el, paletteSections(), (it) => set(makeOperand(it, node)))));
+    out.push(tok("value", fmtPlain(node.value), (el) => openNumber(el, { value: node.value, label: "Number" }, (v) => set(num(v)))));
+    return out;
+  }
+  if (depth === 0 || node.offset) out.push(offsetTok(node, set));
+  out.push(tok("measure", labelFor(node), (el) => openMenu(el, paletteSections(), (it) => set(makeOperand(it, node))),
+               itemFor(node)?.doc));
+  if (node.type === "fn") {
+    const params = itemFor(node)?.params ?? [];
+    out.push(h("span", { class: "paren" }, "("));
+    node.args.forEach((arg, i) => {
+      const p = params[i] || { kind: "series", label: "" };
+      const setArg = (v) => { const args = [...node.args]; args[i] = v; set({ ...node, args }); };
+      if (i) out.push(h("span", { class: "paren" }, ","));
+      if (p.kind === "series") out.push(...operandTokens(arg, setArg, depth + 1));
+      else out.push(tok("value", fmtPlain(arg.value), (el) => openNumber(el, {
+        value: arg.value, label: `${labelFor(node)} ${p.label}`, integer: p.kind !== "num", min: p.kind === "int" ? 1 : null,
+      }, (v) => setArg(num(v))), p.label));
+    });
+    out.push(h("span", { class: "paren" }, ")"));
+  }
+  return out;
+}
+
+function mathTok(node, set) {
+  return tok("add", "+", (el) => openMenu(el, [{ title: "Do math with this value", items:
+    B.math.map((m) => ({ label: m.label, value: m.op })) }],
+    (op) => set({ type: "bin", op, left: node, right: num(op === "*" || op === "/" ? 1 : 0) }), { search: false }),
+    "Add math: plus, minus, times or divided by");
+}
+
+function conditionTokens(cond, set) {
+  if (cond.type === "advanced") return [tok("adv", cond.expr, null, "Written in the scan file. Remove it and add a new filter to edit by clicking.")];
+  const verb = cond.type === "cross" ? B.cross.find((c) => c.dir === cond.dir)?.label : B.compare.find((c) => c.op === cond.op)?.label;
+  const verbTok = tok("verb", verb ?? cond.op, (el) => openMenu(el, [
+    { title: "Compare", items: B.compare.map((c) => ({ label: c.label, value: { type: "compare", op: c.op } })) },
+    { title: "Cross", items: B.cross.map((c) => ({ label: c.label, value: { type: "cross", dir: c.dir } })) },
+  ], (v) => set({ ...v, left: cond.left, right: cond.right }), { search: false }));
+  const setL = (v) => set({ ...cond, left: v });
+  const setR = (v) => set({ ...cond, right: v });
+  return [...operandTokens(cond.left, setL, 0), mathTok(cond.left, setL), verbTok,
+          ...operandTokens(cond.right, setR, 0), mathTok(cond.right, setR)];
+}
+
+/* ================================================================== status and universes */
+
+async function loadStatus() {
+  const st = await api("GET", "/api/status");
+  state.status = st;
+  const box = $("#status"); box.replaceChildren();
+  if (!st.loaded) {
+    box.append(h("span", { class: "loss" }, st.error || "Historify data is not loaded"),
+               h("button", { class: "btn small", onclick: reloadData }, "Reload data"));
+    return;
+  }
+  const d = st.data;
+  box.append(
+    h("span", {}, "Historify ", h("strong", {}, `${d.symbols} stocks`), ", last bar ", h("strong", {}, fmtDate(d.last_date))),
+    h("button", { class: "link", onclick: reloadData }, "Reload data"),
+    h("button", { class: "link", onclick: refreshIndices }, "Update index lists"),
+  );
+  updateHint();
+}
+
+async function reloadData() {
+  say("Reloading Historify data");
+  try { await api("POST", "/api/reload"); await loadStatus(); await loadUniverses(); say("Historify data reloaded"); }
+  catch (e) { say(e.message, "error"); }
+}
+
+async function refreshIndices() {
+  say("Downloading index lists from NSE");
+  try {
+    const rep = await api("POST", "/api/universes/refresh");
+    await loadUniverses();
+    const parts = Object.values(rep).map((r) => r.status === "ok" ? `${r.name} (${r.count})` : `${r.name} failed`);
+    say("Index lists updated: " + parts.join(", "), Object.values(rep).some((r) => r.status !== "ok") ? "caution" : "");
+  } catch (e) { say(e.message, "error"); }
+}
+
+async function loadUniverses() {
+  state.universes = await api("GET", "/api/universes");
+  const sel = $("#universe"); sel.replaceChildren();
+  for (const u of state.universes) sel.append(h("option", { value: u.id, disabled: !u.available }, u.id === "historify" ? "all Historify stocks" : u.name));
+  if (state.scan) sel.value = state.scan.universe;
+  fitSelects(); updateHint();
+}
+
+/* Native selects size to their longest option; size each one to the chosen word instead. */
+function fitSelects() {
+  const m = $("#ruler");
+  for (const sel of document.querySelectorAll(".sentence select")) {
+    m.textContent = sel.options[sel.selectedIndex]?.text ?? "";
+    sel.style.width = `${Math.ceil(m.getBoundingClientRect().width) + 8}px`;
+  }
+}
+
+function setDate(value) {
+  $("#asOf").value = value || "";
+  $("#asOfLabel").textContent = value ? fmtDate(value) : "the latest day";
+  updateHint();
+}
+
+function updateHint() {
+  const hint = $("#sentenceHint"); hint.replaceChildren();
+  if (!state.scan || !state.status?.data) return;
+  const u = state.universes.find((x) => x.id === state.scan.universe);
+  let caution = false;
+  if (u && u.size !== undefined) {
+    let text = u.id === "historify" ? `${u.size} stocks with Historify data.` : `${u.in_data} of ${u.size} stocks have Historify data.`;
+    if (u.missing?.length) { text += ` Not in Historify: ${u.missing.join(", ")}.`; caution = true; }
+    hint.append(h("span", { class: "uni" }, text));
+  }
+  if ($("#asOf").value) hint.append(h("button", { class: "link", onclick: () => { setDate(""); run(); } },
+    `Use the latest day (${fmtDate(state.status.data.last_date)})`));
+  else hint.append(h("span", {}, `Latest bar: ${fmtDate(state.status.data.last_date)}.`));
+  hint.className = "hint" + (caution ? " caution" : "");
+}
+
+/* ================================================================== scans */
+
+async function loadScanList(selectId) {
+  const scans = await api("GET", "/api/scans");
+  const sel = $("#scanSelect"); sel.replaceChildren(h("option", { value: "" }, "Unsaved scan"));
+  for (const s of scans) sel.append(h("option", { value: s.id }, s.name));
+  sel.value = selectId ?? "";
+  return scans;
+}
+
+function fromApi(scan) {
+  const conv = (g) => ({ match: g.match, negate: g.negate, filters: g.filters.map((f) => f.group
+    ? { group: conv(f.group), note: f.note || "", enabled: f.enabled }
+    : { tree: f.tree, note: f.note || "", enabled: f.enabled }) });
+  return { ...scan, group: conv(scan.group), columns: scan.columns.map((c) => ({ ...c })) };
+}
+
+async function openScan(id) {
+  if (!id) return;
+  try {
+    state.scan = fromApi(await api("GET", `/api/scans/${encodeURIComponent(id)}`));
+    state.scanId = id; state.errors = {}; state.result = null; state.sort = null;
+    renderScan();
+    await run();
+  } catch (e) { say(e.message, "error"); }
+}
+
+function newScan() {
+  state.scan = { name: "Untitled scan", description: "", universe: "nifty500",
+    group: { match: "all", negate: false, filters: [] },
+    columns: [
+      { tree: field("close"), as: "Close", format: "number", decimals: 2, color: false },
+      { tree: field("pct_change"), as: "% Chg", format: "percent", decimals: 2, color: true },
+      { tree: field("volume"), as: "Volume", format: "integer", color: false },
+    ], sort: { by: "% Chg", desc: true } };
+  state.scanId = null; state.errors = {}; state.result = null;
+  $("#scanSelect").value = "";
+  renderScan();
+  $("#resultsBlock").classList.add("hidden");
+  say("Add filters with Quick add or Add filter.");
+}
+
+function renderScan() {
+  const s = state.scan;
+  $("#scanName").value = s.name;
+  $("#scanDesc").value = s.description || "";
+  $("#universe").value = s.universe;
+  $("#negate").value = String(!!s.group.negate);
+  renderFilters(); renderColumns(); updateHint();
+}
+
+function matchOptions(sel, group) {
+  sel.replaceChildren(h("option", { value: "all" }, "all"));
+  const n = Math.max(1, group.filters.length);
+  for (let i = 1; i <= n; i++) sel.append(h("option", { value: `any ${i}` }, i === 1 ? "any one" : `any ${i}`));
+  sel.value = group.match;
+  if (sel.value !== group.match) { group.match = "all"; sel.value = "all"; }
+}
+
+function payload() {
+  const s = state.scan;
+  s.name = $("#scanName").value.trim() || "Untitled scan";
+  s.description = $("#scanDesc").value;
+  s.universe = $("#universe").value;
+  s.group.negate = $("#negate").value === "true";
+  s.group.match = $("#match").value;
+  const grp = (g) => ({ match: g.match, negate: g.negate, filters: g.filters.map((f) => f.group
+    ? { group: grp(f.group), note: f.note || null, enabled: f.enabled }
+    : { tree: f.tree, note: f.note || null, enabled: f.enabled }) });
+  return { name: s.name, description: s.description, universe: s.universe, group: grp(s.group), sort: s.sort,
+    columns: s.columns.map((c) => ({ tree: c.tree, as: c.as || readable(c.tree), format: c.format,
+                                     decimals: c.decimals ?? null, color: !!c.color })) };
+}
+
+/* ================================================================== filter list */
+
+function changed() { state.errors = {}; renderFilters(); scheduleRun(); }
+
+function renderFilters() {
+  matchOptions($("#match"), state.scan.group);
+  fitSelects();
+  const list = $("#filters"); list.replaceChildren();
+  renderGroupItems(state.scan.group, list, [], 0);
+  if (!state.scan.group.filters.length) list.append(h("li", { class: "filter" }, h("span"), h("span"),
+    h("div", { class: "message" }, "No filters yet. Every stock passes. Pick a Quick add filter or press Add filter.")));
+}
+
+function renderGroupItems(group, list, prefix, depth) {
+  const funnel = depth === 0 ? (state.result?.funnel ?? []) : [];
+  const base = funnel.find((f) => f.cumulative !== undefined)?.cumulative ?? Math.max(1, ...funnel.map((f) => f.pass ?? 0));
+  group.filters.forEach((f, i) => {
+    const path = [...prefix, i];
+    const key = path.join(".");
+    const err = state.errors[key];
+    const body = h("div", { class: "body" });
+    if (f.group) body.append(groupBlock(f.group, path, depth + 1));
+    else body.append(h("div", { class: "cond" }, conditionTokens(f.tree, (t) => { f.tree = t; changed(); })));
+    body.append(h("input", { class: "note", value: f.note || "", placeholder: "Add a note", "aria-label": `Note for filter ${key}`,
+                             oninput: (e) => { f.note = e.target.value; } }));
+    if (err) body.append(h("div", { class: "err" }, err));
+
+    const cells = [h("span", { class: "num" }, path.map((p) => p + 1).join(".")),
+      h("input", { type: "checkbox", checked: f.enabled, "aria-label": `Use filter ${key}`,
+                   onchange: (e) => { f.enabled = e.target.checked; changed(); } }), body];
+    if (depth === 0) cells.push(funnelCell(f, funnel[i], base));
+    cells.push(h("div", { class: "row-actions" },
+      h("button", { class: "link", onclick: () => { group.filters.splice(i + 1, 0, clone(f)); changed(); } }, "Copy"),
+      h("button", { class: "link", onclick: () => { group.filters.splice(i, 1); state.result = null; changed(); } }, "Remove")));
+    list.append(h("li", { class: "filter" + (f.enabled ? "" : " off") + (err ? " error" : "") }, ...cells));
+  });
+}
+
+function funnelCell(f, fr, base) {
+  if (!f.enabled) return h("div", { class: "funnel" }, "off");
+  if (!fr || fr.pass === undefined) return h("div", { class: "funnel" });
+  const left = fr.cumulative ?? fr.pass;
+  const pct = fr.cumulative_pct ?? fr.pass_pct;
+  const label = fr.cumulative !== undefined ? "left" : "pass alone";
+  const bar = h("span");
+  requestAnimationFrame(() => { bar.style.width = `${base ? Math.min(100, (100 * left) / base) : 0}%`; });
+  return h("div", { class: "funnel", title: `${fr.pass} pass this filter on its own` },
+    h("span", { class: "count" }, left.toLocaleString("en-IN")), ` ${label}, ${pct}%`, h("div", { class: "bar" }, bar));
+}
+
+function groupBlock(g, path, depth) {
+  const negate = h("select", { "aria-label": "Pass or fail", onchange: (e) => { g.negate = e.target.value === "true"; changed(); } },
+    h("option", { value: "false" }, "pass"), h("option", { value: "true" }, "fail"));
+  negate.value = String(!!g.negate);
+  const match = h("select", { "aria-label": "How many must pass", onchange: (e) => { g.match = e.target.value; changed(); } });
+  matchOptions(match, g);
+  const list = h("ol", { class: "filters nested" });
+  renderGroupItems(g, list, path, depth);
+  const addBtn = h("button", { class: "btn small" }, "Add filter");
+  addBtn.addEventListener("click", () => pickNewFilter(addBtn, g));
+  return h("div", { class: "group" },
+    h("div", { class: "group-head" }, "Sub-group: stocks that", negate, match, "of these"),
+    list,
+    h("div", { class: "under-filters" }, addBtn,
+      depth < 3 ? h("button", { class: "btn small", onclick: () => { g.filters.push(newGroup()); changed(); } }, "Add sub-group") : null));
+}
+
+function newFilter(left) { return { tree: { type: "compare", op: ">", left, right: defaultRight(left) }, note: "", enabled: true }; }
+function newGroup() {
+  return { group: { match: "any 1", negate: false, filters: [newFilter(field("close")), newFilter({ type: "fn", name: "rsi", offset: 0, args: [field("close"), num(14)] })] },
+           note: "", enabled: true };
+}
+function pickNewFilter(anchor, group) {
+  openMenu(anchor, paletteSections(), (item) => { group.filters.push(newFilter(makeOperand(item))); changed(); });
+}
+
+/* ================================================================== quick add */
+
+function renderQuick() {
+  const box = $("#quick");
+  for (const p of B.presets) box.append(h("button", { class: "chip", onclick: () => {
+    if (!state.scan) return;
+    state.scan.group.filters.push({ tree: clone(p.tree), note: p.label, enabled: true });
+    changed(); say(`Added: ${p.label}`);
+  } }, p.label));
+}
+
+/* ================================================================== columns */
+
+function renderColumns() {
+  const box = $("#columns"); box.replaceChildren();
+  state.scan.columns.forEach((c, i) => {
+    const set = (t) => { if (!c.as || c.as === readable(c.tree)) c.as = readable(t); c.tree = t; renderColumns(); scheduleRun(); };
+    const tokens = c.tree ? [...operandTokens(c.tree, set, 0), mathTok(c.tree, set)] : [tok("adv", c.expr)];
+    box.append(h("div", { class: "col-row" },
+      h("div", { class: "cond" }, tokens),
+      h("input", { type: "text", value: c.as ?? "", placeholder: "Column name", "aria-label": "Column name",
+                   onchange: (e) => { c.as = e.target.value; scheduleRun(); } }),
+      h("select", { "aria-label": "Column format", onchange: (e) => { c.format = e.target.value; scheduleRun(); } },
+        ...["number", "percent", "integer"].map((f) => { const o = h("option", { value: f }, f); o.selected = c.format === f; return o; })),
+      h("label", {}, h("input", { type: "checkbox", checked: !!c.color, onchange: (e) => { c.color = e.target.checked; scheduleRun(); } }), "Green or red"),
+      h("button", { class: "link", onclick: () => { state.scan.columns.splice(i, 1); renderColumns(); scheduleRun(); } }, "Remove")));
+  });
+}
+
+function addColumn(anchor) {
+  openMenu(anchor, paletteSections(), (item) => {
+    const tree = makeOperand(item);
+    const pct = tree.name === "pct_change";
+    state.scan.columns.push({ tree, as: item.label, format: pct ? "percent" : tree.name === "volume" ? "integer" : "number",
+                              decimals: 2, color: pct });
+    renderColumns(); scheduleRun();
+  });
+}
+
+/* ================================================================== run and results */
+
+async function run() {
+  clearTimeout(runTimer);
+  if (!state.scan) return;
+  const btn = $("#run"); btn.disabled = true; say("Running scan");
+  try {
+    const res = await api("POST", "/api/run", { scan: payload(), as_of: $("#asOf").value || null });
+    state.result = res; state.errors = {};
+    renderFilters(); renderResults();
+    const note = res.insufficient_history ? `, ${res.insufficient_history} skipped for short history` : "";
+    say(`Done in ${res.elapsed_ms} ms${note}`, res.insufficient_history ? "caution" : "");
+    if (!$("#historyBlock").classList.contains("hidden")) await loadHistory(false);
+  } catch (e) {
+    if (e.detail?.path?.length) { state.errors[e.detail.path.join(".")] = e.message; renderFilters(); say("Fix the highlighted filter", "error"); }
+    else say(e.message, "error");
+  } finally { btn.disabled = false; }
+}
+
+function renderResults() {
+  const r = state.result; if (!r) return;
+  $("#resultsBlock").classList.remove("hidden");
+  $("#exportCsv").disabled = false;
+  $("#resultSummary").replaceChildren(h("strong", {}, `${r.matched} of ${r.active}`),
+    ` stocks in ${r.universe.name} matched on `, h("strong", {}, fmtDate(r.as_of)));
+  $("#explain").replaceChildren(...r.explain.split("\n").map((line) => {
+    const depth = line.length - line.trimStart().length;
+    return h("div", { style: `padding-left:${depth * 0.6 + 1.3}em;text-indent:-1.3em` }, line.trim());
+  }));
+  $("#backToLatest").classList.toggle("hidden", !r.requested_as_of);
+  renderTable();
+}
+
+function renderTable() {
+  const r = state.result; const table = $("#results"); table.replaceChildren();
+  const q = $("#search").value.trim().toLowerCase();
+  let rows = r.rows.filter((x) => !q || x.symbol.toLowerCase().includes(q) || x.company.toLowerCase().includes(q)
+                                      || x.industry.toLowerCase().includes(q));
+  if (state.sort) {
+    const { key, desc } = state.sort;
+    const get = (x) => key === "symbol" ? x.symbol : key === "industry" ? x.industry : x.values[key];
+    rows = [...rows].sort((a, b) => {
+      const va = get(a), vb = get(b);
+      if (va === null || va === undefined) return 1; if (vb === null || vb === undefined) return -1;
+      const c = typeof va === "string" ? va.localeCompare(vb) : va - vb;
+      return desc ? -c : c;
+    });
+  }
+  const head = (label, key, numeric) => {
+    const sorted = state.sort?.key === key;
+    return h("th", { class: numeric ? "n" : "" }, h("button", {
+      "aria-sort": sorted ? (state.sort.desc ? "descending" : "ascending") : null,
+      onclick: () => { state.sort = { key, desc: sorted ? !state.sort.desc : numeric }; renderTable(); },
+    }, label + (sorted ? (state.sort.desc ? " (high to low)" : " (low to high)") : "")));
+  };
+  table.append(h("thead", {}, h("tr", {}, head("Symbol", "symbol"), h("th", { class: "plain" }, "Company"), head("Industry", "industry"),
+    ...r.columns.map((c) => head(c.label, c.label, true)))));
+  const body = h("tbody");
+  if (!rows.length) body.append(h("tr", {}, h("td", { colspan: 3 + r.columns.length, class: "empty" },
+    r.rows.length ? "No matches for that filter text." : "No stocks match on this day. Try another date, a wider universe, or loosen a filter.")));
+  for (const row of rows) {
+    body.append(h("tr", {}, h("td", { class: "sym" }, row.symbol), h("td", { class: "co" }, row.company),
+      h("td", { class: "ind" }, row.industry),
+      ...r.columns.map((c) => {
+        const v = row.values[c.label];
+        return h("td", { class: "n" + (c.color && v > 0 ? " gain" : c.color && v < 0 ? " loss" : "") }, fmtValue(v, c));
+      })));
+  }
+  table.append(body);
+}
+
+function exportCsv() {
+  const r = state.result; if (!r) return;
+  const esc = (v) => { const s = v === null || v === undefined ? "" : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+  const lines = [["symbol", "company", "industry", ...r.columns.map((c) => c.label)].map(esc).join(",")];
+  for (const row of r.rows) lines.push([row.symbol, row.company, row.industry, ...r.columns.map((c) => row.values[c.label])].map(esc).join(","));
+  const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+  const a = h("a", { href: URL.createObjectURL(blob), download: `${slug(r.scan)}_${r.as_of}.csv` });
+  document.body.append(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+  say(`Exported ${r.rows.length} rows`);
+}
+
+async function save() {
+  const body = payload();
+  const id = state.scanId || slug(body.name);
+  try {
+    await api("PUT", `/api/scans/${id}`, body);
+    state.scanId = id;
+    await loadScanList(id);
+    say(`Saved to scans/${id}.yaml`);
+  } catch (e) { say(e.message, "error"); }
+}
+
+/* ================================================================== history */
+
+function renderPeriods() {
+  const box = $("#periods"); box.replaceChildren();
+  for (const [p, label] of Object.entries(PERIOD_LABELS)) {
+    box.append(h("button", { "aria-pressed": String(p === state.period), onclick: () => { state.period = p; renderPeriods(); loadHistory(true); } }, label));
+  }
+}
+
+async function loadHistory(scroll) {
+  if (!state.scan) return;
+  $("#historyBlock").classList.remove("hidden");
+  say("Building history");
+  try {
+    state.history = await api("POST", "/api/history", { scan: payload(), period: state.period });
+    renderHistory();
+    say(`History ready in ${state.history.elapsed_ms} ms`);
+    if (scroll) $("#historyBlock").scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (e) {
+    if (e.detail?.path?.length) { state.errors[e.detail.path.join(".")] = e.message; renderFilters(); say("Fix the highlighted filter", "error"); }
+    else say(e.message, "error");
+  }
+}
+
+function renderHistory() {
+  const hs = state.history;
+  const stat = (v, k) => h("div", { class: "stat" }, h("div", { class: "v" }, v), h("div", { class: "k" }, k));
+  $("#historyStats").replaceChildren(
+    stat(hs.total_signals.toLocaleString("en-IN"), "signals"),
+    stat(hs.distinct_stocks.toLocaleString("en-IN"), "different stocks"),
+    stat(`${hs.days_with_signals} of ${hs.trading_days}`, "days with a signal"),
+    stat(hs.max_per_day, "most on one day"));
+  drawChart(hs);
+
+  const table = $("#historyStocks");
+  const body = h("tbody");
+  for (const s of hs.stocks.slice(0, 25)) body.append(h("tr", {}, h("td", { class: "sym" }, s.symbol),
+    h("td", { class: "n" }, s.count), h("td", {}, fmtDate(s.last))));
+  if (!hs.stocks.length) body.append(h("tr", {}, h("td", { colspan: 3, class: "empty" }, "The scan never matched in this period.")));
+  table.replaceChildren(h("thead", {}, h("tr", {}, h("th", { class: "plain" }, "Symbol"), h("th", { class: "plain n" }, "Matches"),
+    h("th", { class: "plain" }, "Last match"))), body);
+
+  const ind = $("#industries"); ind.replaceChildren();
+  const top = hs.industries.slice(0, 12); const max = Math.max(1, ...top.map((x) => x.count));
+  for (const x of top) ind.append(h("div", { class: "ind-row" }, h("span", {}, x.industry), h("span", { class: "n" }, x.count),
+    h("div", { class: "track" }, h("span", { style: `width:${(100 * x.count) / max}%` }))));
+}
+
+function drawChart(hs) {
+  const box = $("#chart"); box.replaceChildren();
+  const days = hs.days; if (!days.length) return;
+  const W = 1000, H = 220, padL = 34, padB = 22, padT = 8;
+  const max = Math.max(1, ...days.map((d) => d.count));
+  const bw = (W - padL) / days.length;
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (tag, attrs, text) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); if (text !== undefined) e.textContent = text; return e; };
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: "none", role: "img", "aria-label": "Number of matching stocks per day" });
+  for (const frac of [0.5, 1]) {
+    const y = padT + (H - padT - padB) * (1 - frac);
+    svg.append(el("line", { x1: padL, x2: W, y1: y, y2: y, class: "gridline" }),
+               el("text", { x: padL - 6, y: y + 4, "text-anchor": "end", class: "axis" }, Math.round(max * frac)));
+  }
+  const selected = state.result?.requested_as_of ? state.result.as_of : null;
+  let lastMonth = "";
+  days.forEach((d, i) => {
+    const x = padL + i * bw;
+    const hgt = ((H - padT - padB) * d.count) / max;
+    if (d.count > 0) {
+      const r = el("rect", { x: x + bw * 0.12, y: H - padB - hgt, width: Math.max(0.8, bw * 0.76), height: hgt,
+        class: "bar-rect" + (d.date === selected ? " sel" : "") });
+      r.append(el("title", {}, `${fmtDate(d.date)}: ${d.count}`));
+      r.addEventListener("mouseenter", () => { $("#chartReadout").textContent = `${fmtDate(d.date)}: ${d.count} stocks matched`; });
+      r.addEventListener("click", () => drillDown(d.date));
+      svg.append(r);
+    }
+    const month = d.date.slice(0, 7);
+    if (month !== lastMonth) {
+      const showYear = days.length > 400;
+      if (!showYear || month.endsWith("-01") || i === 0) {
+        const label = new Date(d.date + "T00:00:00").toLocaleDateString("en-GB", showYear ? { year: "numeric" } : { month: "short" });
+        svg.append(el("text", { x, y: H - 6, class: "axis" }, label));
+      }
+      lastMonth = month;
+    }
+  });
+  box.append(svg);
+}
+
+async function drillDown(date) {
+  setDate(date);
+  await run();
+  $("#chartReadout").textContent = `Showing matches on ${fmtDate(date)} in the table above.`;
+  $("#resultsBlock").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/* ================================================================== wiring */
+
+$("#scanSelect").addEventListener("change", (e) => openScan(e.target.value));
+$("#newScan").addEventListener("click", newScan);
+$("#addFilter").addEventListener("click", (e) => pickNewFilter(e.currentTarget, state.scan.group));
+$("#addGroup").addEventListener("click", () => { state.scan.group.filters.push(newGroup()); changed(); });
+$("#addColumn").addEventListener("click", (e) => addColumn(e.currentTarget));
+$("#run").addEventListener("click", run);
+$("#showHistory").addEventListener("click", () => loadHistory(true));
+$("#exportCsv").addEventListener("click", exportCsv);
+$("#save").addEventListener("click", save);
+$("#search").addEventListener("input", renderTable);
+$("#universe").addEventListener("change", () => { state.scan.universe = $("#universe").value; fitSelects(); updateHint(); run(); });
+$("#negate").addEventListener("change", () => { fitSelects(); run(); });
+$("#match").addEventListener("change", () => { state.scan.group.match = $("#match").value; fitSelects(); run(); });
+$("#asOfLabel").addEventListener("click", () => {
+  const input = $("#asOf");
+  input.max = state.status?.data?.last_date ?? "";
+  input.min = state.status?.data?.first_date ?? "";
+  try { input.showPicker(); } catch { input.focus(); }
+});
+$("#asOf").addEventListener("change", (e) => { setDate(e.target.value); run(); });
+$("#backToLatest").addEventListener("click", () => { setDate(""); run(); });
+window.addEventListener("resize", () => { if (openPop) placePop(openPop.el, openPop.anchor); });
+
+(async function init() {
+  renderPeriods();
+  try {
+    const [, builder] = await Promise.all([loadStatus(), api("GET", "/api/builder")]);
+    Object.assign(B, builder);
+    for (const s of B.sections) for (const it of s.items) B.byKey[`${it.kind}:${it.name}`] = it;
+    renderQuick();
+    await loadUniverses();
+    const scans = await api("GET", "/api/scans");
+    const first = scans.find((s) => s.id === "short_term_breakouts") ?? scans[0];
+    await loadScanList(first?.id);
+    if (first) await openScan(first.id); else newScan();
+  } catch (e) { say(e.message, "error"); }
+})();
+</script>
+</body>
+</html>

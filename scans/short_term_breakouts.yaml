@@ -1,0 +1,35 @@
+name: Short term breakouts
+description: Stocks trading near their high in the past 4 months with rising volumes and closing up.
+  Ported from chartink.com/screener/short-term-breakouts.
+universe: nifty500
+group:
+  match: all
+  negate: false
+  filters:
+  - expr: max(close, 5) > max(close, 120)[6] * 1.05
+    note: Max of 5 day close above half yearly high by 5%
+  - expr: volume > sma(volume, 5)
+    note: Volume above its 5 day average
+  - expr: close > close[1]
+    note: Closed higher than yesterday
+columns:
+- expr: close
+  as: Close
+  format: number
+  decimals: 2
+- expr: pct_change
+  as: '% Chg'
+  format: percent
+  decimals: 2
+  color: true
+- expr: volume
+  as: Volume
+  format: integer
+- expr: (close / max(close, 120)[6] - 1) * 100
+  as: Above 120D High %
+  format: percent
+  decimals: 1
+  color: true
+sort:
+  by: '% Chg'
+  desc: true

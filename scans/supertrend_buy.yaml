@@ -1,0 +1,30 @@
+name: Supertrend turned bullish
+description: Close crossed above Supertrend (10, 3) today.
+universe: nifty500
+group:
+  match: all
+  negate: false
+  filters:
+  - expr: crossed_above(close, supertrend(10, 3))
+    note: Supertrend flipped to buy
+columns:
+- expr: close
+  as: Close
+  format: number
+  decimals: 2
+- expr: pct_change
+  as: '% Chg'
+  format: percent
+  decimals: 2
+  color: true
+- expr: supertrend(10, 3)
+  as: Supertrend
+  format: number
+  decimals: 2
+- expr: atr(14) / close * 100
+  as: ATR %
+  format: percent
+  decimals: 2
+sort:
+  by: '% Chg'
+  desc: true

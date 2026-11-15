@@ -1,0 +1,38 @@
+name: EMA 9/21 bullish crossover
+description: 9-day EMA crossed above the 21-day EMA today, on above-average volume.
+universe: nifty200
+group:
+  match: all
+  negate: false
+  filters:
+  - expr: crossed_above(ema(close, 9), ema(close, 21))
+    note: Fast EMA crossed above slow EMA today
+  - expr: volume > sma(volume, 20)
+    note: Volume above its 20 day average
+  - expr: close > 50
+    note: Skip very low priced stocks
+columns:
+- expr: close
+  as: Close
+  format: number
+  decimals: 2
+- expr: pct_change
+  as: '% Chg'
+  format: percent
+  decimals: 2
+  color: true
+- expr: ema(close, 9)
+  as: EMA 9
+  format: number
+  decimals: 2
+- expr: ema(close, 21)
+  as: EMA 21
+  format: number
+  decimals: 2
+- expr: volume / sma(volume, 20)
+  as: Volume x avg
+  format: number
+  decimals: 2
+sort:
+  by: Volume x avg
+  desc: true

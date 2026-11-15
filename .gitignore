@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Local settings and secrets
+.env
+
+# Data downloaded at runtime (NSE index lists) and local databases
+data/indices/*.csv
+*.duckdb
+*.duckdb.wal
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
